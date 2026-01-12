@@ -53,4 +53,10 @@ describe('Laboratory stock management', () => {
 
     expect(lab.getQuantity('stardust')).toBe(1.75);
   });
+
+  test('add returns the updated quantity', () => {
+    const lab = new Laboratory(['stardust']);
+    expect(lab.add('stardust', 0.5)).toBe(0.5);
+    expect(lab.add('stardust', 0.25)).toBe(0.75);
+  });
 });
