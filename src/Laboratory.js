@@ -86,11 +86,7 @@ class Laboratory {
   }
 
   #normalizeQuantity(value) {
-    if (typeof value !== "number" || Number.isNaN(value)) {
-      throw new TypeError(`Quantity must be a finite number: ${String(value)}`);
-    }
-
-    if (!Number.isFinite(value)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
       throw new TypeError(`Quantity must be a finite number: ${String(value)}`);
     }
 
