@@ -231,4 +231,45 @@ describe('Laboratory reactions execution', () => {
     expect(lab.getQuantity('moonwater')).toBe(2);
     expect(lab.getQuantity('elixir')).toBe(3);
   });
+
+  test('make only produces what reagents allow', () => {
+    const lab = new Laboratory(
+      ['stardust'],
+      { stardust: 5 },
+      {
+        gem: [[2, 'stardust']],
+      },
+    );
+
+    expect(lab.make('gem', 4)).toBe(2.5);
+    expect(lab.getQuantity('stardust')).toBe(0);
+  });
+
+  test('make handles reactions using products as reagents', () => {
+    const lab = new Laboratory(
+      ['stardust', 'moonwater'],
+      { stardust: 4, moonwater: 2 },
+      {
+        elixir: [
+          [2, 'stardust'],
+          [1, 'moonwater'],
+        ],
+        potion: [[1, 'elixir']],
+      },
+    );
+
+    const produced = lab.make('potion', 2);
+    expect(produced).toBe(2);
+    expect(lab.getQuantity('elixir')).toBe(0);
+    expect(lab.getQuantity('stardust')).toBe(0);
+    expect(lab.getQuantity('moonwater')).toBe(0);
+    expect(lab.getQuantity('potion')).toBe(2);
+  });
+
+  test('make returns 0 for unknown products or zero quantity', () => {
+    const lab = new Laboratory(['stardust']);
+    expect(lab.make('unknown', 1)).toBe(0);
+    expect(() => lab.make('unknown', -1)).toThrow(RangeError);
+    expect(lab.make('unknown', 0)).toBe(0);
+  });
 });
