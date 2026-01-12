@@ -37,16 +37,14 @@ class Laboratory {
         throw new RangeError(`Duplicate substance name: ${normalizedName}`);
       }
 
-      const startingQuantity = normalizedInitialStock.has(normalizedName)
-        ? normalizedInitialStock.get(normalizedName)
-        : 0;
+      const startingQuantity = normalizedInitialStock.get(normalizedName) ?? 0;
 
       inventory.set(normalizedName, startingQuantity);
       normalizedInitialStock.delete(normalizedName);
     });
 
     if (normalizedInitialStock.size > 0) {
-      const [unknownName] = normalizedInitialStock.keys();
+      const { value: unknownName } = normalizedInitialStock.keys().next();
       throw new ReferenceError(
         `Initial stock references unknown substance: ${unknownName}`
       );
@@ -74,7 +72,7 @@ class Laboratory {
     }
 
     const normalized = new Map();
-    Object.entries(initialStock).forEach(([name, quantity]) => {
+    for (const [name, quantity] of Object.entries(initialStock)) {
       const normalizedName = this.#normalizeName(name);
       if (!normalizedName) {
         throw new Error(
@@ -83,7 +81,7 @@ class Laboratory {
       }
 
       normalized.set(normalizedName, this.#normalizeQuantity(quantity));
-    });
+    }
 
     return normalized;
   }
