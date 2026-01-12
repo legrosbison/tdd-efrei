@@ -25,42 +25,16 @@ class Laboratory {
       throw new TypeError(`Invalid substance name: ${String(productName)}`);
     }
 
-    if (!this.#recipes.has(normalizedProduct)) {
-      return 0;
-    }
-
-    const recipe = this.#recipes.get(normalizedProduct);
     const requestedQuantity = this.#normalizeQuantity(desiredQuantity);
     if (requestedQuantity === 0) {
       return 0;
     }
 
-    const maxPossible = recipe.reduce((min, reagent) => {
-      const available = this.#inventory.get(reagent.substance);
-      if (reagent.quantity === 0) {
-        return min;
-      }
-      const possible = available / reagent.quantity;
-      return Math.min(min, possible);
-    }, Number.POSITIVE_INFINITY);
-
-    const actualQuantity = Math.min(requestedQuantity, maxPossible);
-    if (actualQuantity <= 0) {
+    if (!this.#recipes.has(normalizedProduct)) {
       return 0;
     }
 
-    recipe.forEach((reagent) => {
-      const consumption = reagent.quantity * actualQuantity;
-      this.#inventory.set(
-        reagent.substance,
-        this.#inventory.get(reagent.substance) - consumption
-      );
-    });
-
-    const updatedProduct =
-      this.#inventory.get(normalizedProduct) + actualQuantity;
-    this.#inventory.set(normalizedProduct, updatedProduct);
-    return actualQuantity;
+    return this.#makeInternal(normalizedProduct, requestedQuantity, new Set());
   }
 
   #inventory;
@@ -224,6 +198,73 @@ class Laboratory {
     if (value === null || typeof value !== "object" || Array.isArray(value)) {
       throw new TypeError(message);
     }
+  }
+
+  #makeInternal(productName, requestedQuantity, stack) {
+    if (stack.has(productName)) {
+      throw new RangeError(
+        `Circular reaction detected while producing: ${productName}`
+      );
+    }
+
+    const recipe = this.#recipes.get(productName);
+    if (!recipe) {
+      return 0;
+    }
+
+    stack.add(productName);
+    recipe.forEach((reagent) => {
+      const requiredQuantity = reagent.quantity * requestedQuantity;
+      this.#ensureReagentAvailability(
+        reagent.substance,
+        requiredQuantity,
+        stack
+      );
+    });
+
+    const actualQuantity = recipe.reduce((min, reagent) => {
+      if (reagent.quantity === 0) {
+        return min;
+      }
+
+      const available = this.#inventory.get(reagent.substance);
+      const possible = available / reagent.quantity;
+      return Math.min(min, possible);
+    }, requestedQuantity);
+
+    if (actualQuantity <= 0 || !Number.isFinite(actualQuantity)) {
+      stack.delete(productName);
+      return 0;
+    }
+
+    recipe.forEach((reagent) => {
+      const consumption = reagent.quantity * actualQuantity;
+      this.#inventory.set(
+        reagent.substance,
+        this.#inventory.get(reagent.substance) - consumption
+      );
+    });
+
+    this.#inventory.set(
+      productName,
+      this.#inventory.get(productName) + actualQuantity
+    );
+    stack.delete(productName);
+    return actualQuantity;
+  }
+
+  #ensureReagentAvailability(substanceName, requiredQuantity, stack) {
+    const current = this.#inventory.get(substanceName);
+    const missing = requiredQuantity - current;
+    if (missing <= 0) {
+      return;
+    }
+
+    if (!this.#recipes.has(substanceName)) {
+      return;
+    }
+
+    this.#makeInternal(substanceName, missing, stack);
   }
 }
 
