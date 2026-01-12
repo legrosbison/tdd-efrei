@@ -2,6 +2,9 @@ class Laboratory {
   constructor(knownSubstances, initialStock = {}, reactions = {}) {
     this.#inventory = this.#buildBaseInventory(knownSubstances);
     this.#recipes = this.#buildRecipes(reactions);
+    this.#componentLookup = new Map();
+    this.#components = [];
+    this.#analyzeReactionGraph();
     this.#applyInitialStock(initialStock);
   }
 
@@ -39,6 +42,8 @@ class Laboratory {
 
   #inventory;
   #recipes;
+  #components;
+  #componentLookup;
 
   #buildBaseInventory(knownSubstances) {
     if (!Array.isArray(knownSubstances)) {
@@ -74,8 +79,8 @@ class Laboratory {
       "Reactions must be provided as an object literal"
     );
 
-    const recipes = new Map();
-    for (const [productName, reagents] of Object.entries(reactions)) {
+    const normalizedProducts = [];
+    for (const productName of Object.keys(reactions)) {
       const normalizedProduct = this.#normalizeName(productName);
       if (!normalizedProduct) {
         throw new TypeError(
@@ -83,16 +88,21 @@ class Laboratory {
         );
       }
 
-      if (this.#inventory.has(normalizedProduct)) {
+      if (
+        this.#inventory.has(normalizedProduct) ||
+        normalizedProducts.some((entry) => entry.name === normalizedProduct)
+      ) {
         throw new RangeError(`Duplicate substance name: ${normalizedProduct}`);
       }
 
-      recipes.set(
-        normalizedProduct,
-        this.#normalizeReagents(reagents, normalizedProduct)
-      );
+      normalizedProducts.push({ original: productName, name: normalizedProduct });
       this.#inventory.set(normalizedProduct, 0);
     }
+
+    const recipes = new Map();
+    normalizedProducts.forEach(({ original, name }) => {
+      recipes.set(name, this.#normalizeReagents(reactions[original], name));
+    });
 
     return recipes;
   }
@@ -201,6 +211,15 @@ class Laboratory {
   }
 
   #makeInternal(productName, requestedQuantity, stack) {
+    const component = this.#componentLookup.get(productName);
+    if (component?.isCyclic) {
+      return this.#makeFromCyclicComponent(
+        component,
+        productName,
+        requestedQuantity
+      );
+    }
+
     if (stack.has(productName)) {
       throw new RangeError(
         `Circular reaction detected while producing: ${productName}`
@@ -254,6 +273,7 @@ class Laboratory {
   }
 
   #ensureReagentAvailability(substanceName, requiredQuantity, stack) {
+    const contextStack = stack ?? new Set();
     const current = this.#inventory.get(substanceName);
     const missing = requiredQuantity - current;
     if (missing <= 0) {
@@ -264,7 +284,326 @@ class Laboratory {
       return;
     }
 
-    this.#makeInternal(substanceName, missing, stack);
+    this.#makeInternal(substanceName, missing, contextStack);
+  }
+
+  #makeFromCyclicComponent(component, productName, desiredQuantity) {
+    if (desiredQuantity <= 0) {
+      return 0;
+    }
+
+    const size = component.products.length;
+    const demandVector = Array(size).fill(0);
+    const targetIndex = component.indexMap.get(productName);
+    if (targetIndex === undefined) {
+      return 0;
+    }
+    demandVector[targetIndex] = desiredQuantity;
+
+    const productionTotals = this.#multiplyMatrixVector(
+      component.inverse,
+      demandVector
+    );
+
+    const stockUsage = [];
+    const plannedProduction = [];
+    component.products.forEach((product, index) => {
+      const needed = productionTotals[index];
+      const available = this.#inventory.get(product);
+      const targetDemand = index === targetIndex ? desiredQuantity : 0;
+      const internalDemand = Math.max(0, needed - targetDemand);
+      const usableFromStock =
+        index === targetIndex
+          ? Math.min(available, internalDemand)
+          : Math.min(available, needed);
+      stockUsage[index] = usableFromStock;
+      plannedProduction[index] = needed - usableFromStock;
+    });
+
+    const externalRequirements = new Map();
+    component.products.forEach((product, index) => {
+      const produced = plannedProduction[index];
+      if (produced === 0) {
+        return;
+      }
+
+      const recipe = this.#recipes.get(product);
+      recipe.forEach((reagent) => {
+        if (!component.productSet.has(reagent.substance)) {
+          const amount = reagent.quantity * produced;
+          if (amount === 0) {
+            return;
+          }
+
+          externalRequirements.set(
+            reagent.substance,
+            (externalRequirements.get(reagent.substance) ?? 0) + amount
+          );
+        }
+      });
+    });
+
+    if (externalRequirements.size === 0) {
+      return 0;
+    }
+
+    externalRequirements.forEach((amount, substance) => {
+      this.#ensureReagentAvailability(substance, amount, new Set());
+    });
+
+    let scale = 1;
+    externalRequirements.forEach((amount, substance) => {
+      if (amount === 0) {
+        return;
+      }
+
+      const available = this.#inventory.get(substance);
+      if (available === undefined) {
+        scale = 0;
+        return;
+      }
+
+      scale = Math.min(scale, available / amount);
+    });
+
+    if (scale <= 0 || !Number.isFinite(scale)) {
+      return 0;
+    }
+
+    const scaledProductionPlan = plannedProduction.map(
+      (value) => value * scale
+    );
+
+    component.products.forEach((product, index) => {
+      const produced = scaledProductionPlan[index];
+      if (produced === 0) {
+        return;
+      }
+
+      this.#inventory.set(
+        product,
+        this.#inventory.get(product) + produced
+      );
+    });
+
+    component.products.forEach((product, index) => {
+      const produced = scaledProductionPlan[index];
+      if (produced === 0) {
+        return;
+      }
+
+      const recipe = this.#recipes.get(product);
+      recipe.forEach((reagent) => {
+        const consumption = reagent.quantity * produced;
+        if (consumption === 0) {
+          return;
+        }
+
+        const current = this.#inventory.get(reagent.substance);
+        const updated = current - consumption;
+        this.#inventory.set(
+          reagent.substance,
+          Math.abs(updated) < 1e-12 ? 0 : updated
+        );
+      });
+    });
+
+    return desiredQuantity * scale;
+  }
+
+  #analyzeReactionGraph() {
+    this.#componentLookup.clear();
+    this.#components = [];
+
+    const graph = new Map();
+    this.#recipes.forEach((recipe, product) => {
+      const edges = new Set();
+      recipe.forEach((reagent) => {
+        if (this.#recipes.has(reagent.substance)) {
+          edges.add(reagent.substance);
+        }
+      });
+      graph.set(product, edges);
+    });
+
+    if (graph.size === 0) {
+      return;
+    }
+
+    const indices = new Map();
+    const lowlinks = new Map();
+    const stack = [];
+    const onStack = new Set();
+    const components = [];
+    let index = 0;
+
+    const strongConnect = (node) => {
+      indices.set(node, index);
+      lowlinks.set(node, index);
+      index += 1;
+      stack.push(node);
+      onStack.add(node);
+
+      graph.get(node).forEach((neighbor) => {
+        if (!indices.has(neighbor)) {
+          strongConnect(neighbor);
+          lowlinks.set(
+            node,
+            Math.min(lowlinks.get(node), lowlinks.get(neighbor))
+          );
+        } else if (onStack.has(neighbor)) {
+          lowlinks.set(
+            node,
+            Math.min(lowlinks.get(node), indices.get(neighbor))
+          );
+        }
+      });
+
+      if (lowlinks.get(node) === indices.get(node)) {
+        const componentProducts = [];
+        let current;
+        do {
+          current = stack.pop();
+          onStack.delete(current);
+          componentProducts.push(current);
+        } while (current !== node);
+
+        const component = this.#createComponent(componentProducts);
+        components.push(component);
+        component.products.forEach((product) => {
+          this.#componentLookup.set(product, component);
+        });
+      }
+    };
+
+    graph.forEach((_, node) => {
+      if (!indices.has(node)) {
+        strongConnect(node);
+      }
+    });
+
+    this.#components = components;
+  }
+
+  #createComponent(products) {
+    const componentProducts = products;
+    const indexMap = new Map();
+    componentProducts.forEach((product, idx) => {
+      indexMap.set(product, idx);
+    });
+    const productSet = new Set(componentProducts);
+    const hasSelfLoop = componentProducts.some((product) => {
+      const recipe = this.#recipes.get(product) ?? [];
+      return recipe.some(
+        (reagent) => reagent.substance === product && reagent.quantity > 0
+      );
+    });
+    const isCyclic = componentProducts.length > 1 || hasSelfLoop;
+
+    const component = {
+      products: componentProducts,
+      indexMap,
+      productSet,
+      isCyclic,
+      inverse: null,
+    };
+
+    if (isCyclic) {
+      component.inverse = this.#computeComponentInverse(component);
+    }
+
+    return component;
+  }
+
+  #computeComponentInverse(component) {
+    const size = component.products.length;
+    const dependencyMatrix = Array.from({ length: size }, () =>
+      Array(size).fill(0)
+    );
+
+    component.products.forEach((product, column) => {
+      const recipe = this.#recipes.get(product);
+      recipe.forEach((reagent) => {
+        const row = component.indexMap.get(reagent.substance);
+        if (row !== undefined) {
+          dependencyMatrix[row][column] += reagent.quantity;
+        }
+      });
+    });
+
+    const systemMatrix = this.#identityMatrix(size);
+    for (let row = 0; row < size; row += 1) {
+      for (let col = 0; col < size; col += 1) {
+        systemMatrix[row][col] -= dependencyMatrix[row][col];
+      }
+    }
+
+    return this.#invertMatrix(systemMatrix);
+  }
+
+  #identityMatrix(size) {
+    return Array.from({ length: size }, (_, row) =>
+      Array.from({ length: size }, (_, col) => (row === col ? 1 : 0))
+    );
+  }
+
+  #invertMatrix(matrix) {
+    const n = matrix.length;
+    const augmented = matrix.map((row, i) => {
+      const identityRow = Array(n).fill(0);
+      identityRow[i] = 1;
+      return [...row, ...identityRow];
+    });
+
+    for (let col = 0; col < n; col += 1) {
+      let pivotRow = col;
+      for (let row = col + 1; row < n; row += 1) {
+        if (
+          Math.abs(augmented[row][col]) >
+          Math.abs(augmented[pivotRow][col])
+        ) {
+          pivotRow = row;
+        }
+      }
+
+      const pivotValue = augmented[pivotRow][col];
+      if (Math.abs(pivotValue) < Number.EPSILON) {
+        throw new Error(
+          "Circular reaction matrix is singular and cannot be resolved"
+        );
+      }
+
+      if (pivotRow !== col) {
+        [augmented[pivotRow], augmented[col]] = [
+          augmented[col],
+          augmented[pivotRow],
+        ];
+      }
+
+      const pivotFactor = augmented[col][col];
+      for (let j = 0; j < 2 * n; j += 1) {
+        augmented[col][j] /= pivotFactor;
+      }
+
+      for (let row = 0; row < n; row += 1) {
+        if (row === col) {
+          continue;
+        }
+
+        const factor = augmented[row][col];
+        for (let j = 0; j < 2 * n; j += 1) {
+          augmented[row][j] -= factor * augmented[col][j];
+        }
+      }
+    }
+
+    return augmented.map((row) => row.slice(n));
+  }
+
+  #multiplyMatrixVector(matrix, vector) {
+    return matrix.map((row) =>
+      row.reduce((sum, value, index) => sum + value * vector[index], 0)
+    );
   }
 }
 
