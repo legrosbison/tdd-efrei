@@ -45,6 +45,78 @@ describe('Laboratory initialization', () => {
   });
 });
 
+describe('Laboratory reactions', () => {
+  test('registers products defined by reactions', () => {
+    const lab = new Laboratory(
+      ['stardust', 'moonwater'],
+      {},
+      {
+        elixir: [
+          [1.5, 'stardust'],
+          [0.25, 'moonwater'],
+        ],
+      },
+    );
+
+    expect(lab.getQuantity('elixir')).toBe(0);
+  });
+
+  test('allows initial stock for products', () => {
+    const lab = new Laboratory(
+      ['stardust'],
+      { elixir: 2 },
+      {
+        elixir: [[1, 'stardust']],
+      },
+    );
+
+    expect(lab.getQuantity('elixir')).toBe(2);
+  });
+
+  describe('error handling', () => {
+    test('rejects invalid reaction dictionaries', () => {
+      expect(() => new Laboratory(['stardust'], {}, null)).toThrow(TypeError);
+      expect(() => new Laboratory(['stardust'], {}, [])).toThrow(TypeError);
+    });
+
+    test('rejects duplicate product names', () => {
+      expect(() =>
+        new Laboratory(
+          ['stardust'],
+          {},
+          {
+            stardust: [[1, 'stardust']],
+          },
+        ),
+      ).toThrow(RangeError);
+    });
+
+    test('rejects reactions referencing unknown substances', () => {
+      expect(() =>
+        new Laboratory(
+          ['stardust'],
+          {},
+          {
+            elixir: [[1, 'moonwater']],
+          },
+        ),
+      ).toThrow(ReferenceError);
+    });
+
+    test('rejects invalid reagent definitions', () => {
+      expect(() =>
+        new Laboratory(
+          ['stardust'],
+          {},
+          {
+            elixir: [['not-a-number', 'stardust']],
+          },
+        ),
+      ).toThrow(TypeError);
+    });
+  });
+});
+
 describe('Laboratory stock management', () => {
   test('add increases inventory for known substances', () => {
     const lab = new Laboratory(['stardust']);
@@ -58,6 +130,19 @@ describe('Laboratory stock management', () => {
     const lab = new Laboratory(['stardust']);
     expect(lab.add('stardust', 0.5)).toBe(0.5);
     expect(lab.add('stardust', 0.25)).toBe(0.75);
+  });
+
+  test('can add product stock directly', () => {
+    const lab = new Laboratory(
+      ['stardust'],
+      {},
+      {
+        elixir: [[1, 'stardust']],
+      },
+    );
+
+    expect(lab.add('elixir', 1.25)).toBe(1.25);
+    expect(lab.getQuantity('elixir')).toBe(1.25);
   });
 
   describe('error handling', () => {
