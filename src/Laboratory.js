@@ -1,25 +1,6 @@
 class Laboratory {
   constructor(knownSubstances) {
-    if (!Array.isArray(knownSubstances)) {
-      throw new TypeError("Laboratory expects an array of known substances");
-    }
-
-    this.#inventory = new Map();
-
-    knownSubstances.forEach((name, index) => {
-      const normalizedName = this.#normalizeName(name);
-      if (!normalizedName) {
-        throw new Error(
-          `Invalid substance name at index ${index}: ${String(name)}`
-        );
-      }
-
-      if (this.#inventory.has(normalizedName)) {
-        throw new Error(`Duplicate substance name: ${normalizedName}`);
-      }
-
-      this.#inventory.set(normalizedName, 0);
-    });
+    this.#inventory = this.#buildInventory(knownSubstances);
   }
 
   getQuantity(name) {
@@ -32,6 +13,31 @@ class Laboratory {
   }
 
   #inventory;
+
+  #buildInventory(knownSubstances) {
+    if (!Array.isArray(knownSubstances)) {
+      throw new TypeError("Laboratory expects an array of known substances");
+    }
+
+    const inventory = new Map();
+
+    knownSubstances.forEach((name, index) => {
+      const normalizedName = this.#normalizeName(name);
+      if (!normalizedName) {
+        throw new Error(
+          `Invalid substance name at index ${index}: ${String(name)}`
+        );
+      }
+
+      if (inventory.has(normalizedName)) {
+        throw new Error(`Duplicate substance name: ${normalizedName}`);
+      }
+
+      inventory.set(normalizedName, 0);
+    });
+
+    return inventory;
+  }
 
   #normalizeName(value) {
     if (typeof value !== "string") {
