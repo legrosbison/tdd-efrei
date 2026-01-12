@@ -226,4 +226,25 @@ describe('Laboratory reactions execution', () => {
     expect(() => lab.make('unknown', -1)).toThrow(RangeError);
     expect(lab.make('unknown', 0)).toBe(0);
   });
+
+  test('make resolves circular reaction dependencies when possible', () => {
+    const lab = new Laboratory(
+      ['b', 'd'],
+      { b: 3, c: 0.5, a: 0.1, d: 2 },
+      {
+        a: [
+          [1, 'b'],
+          [1, 'c'],
+        ],
+        c: [
+          [0.2, 'a'],
+          [1, 'd'],
+        ],
+      },
+    );
+
+    const produced = lab.make('a', 2);
+    expect(produced).toBeCloseTo(2, 5);
+    expect(lab.getQuantity('a')).toBeCloseTo(2.1, 5);
+  });
 });
