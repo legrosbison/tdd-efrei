@@ -44,3 +44,13 @@ describe('Laboratory initialization', () => {
     });
   });
 });
+
+describe('Laboratory stock management', () => {
+  test('add increases inventory for known substances', () => {
+    const lab = new Laboratory(['stardust']);
+    lab.add('stardust', 0.5);
+    lab.add('stardust', 1.25);
+
+    expect(lab.getQuantity('stardust')).toBe(1.75);
+  });
+});
