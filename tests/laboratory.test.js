@@ -15,4 +15,32 @@ describe('Laboratory initialization', () => {
     expect(lab.getQuantity('stardust')).toBe(1.25);
     expect(lab.getQuantity('moonwater')).toBe(0);
   });
+
+  describe('error handling', () => {
+    test('rejects empty lists of known substances', () => {
+      expect(() => new Laboratory([])).toThrow(RangeError);
+    });
+
+    test('rejects invalid substance names', () => {
+      expect(() => new Laboratory(['', 3])).toThrow(TypeError);
+    });
+
+    test('rejects duplicate substance names', () => {
+      expect(() => new Laboratory(['stardust', 'Stardust'])).toThrow(
+        RangeError,
+      );
+    });
+
+    test('rejects unknown entries in the initial stock', () => {
+      expect(() =>
+        new Laboratory(['stardust'], { moonwater: 1 }),
+      ).toThrow(ReferenceError);
+    });
+
+    test('rejects negative initial stock quantities', () => {
+      expect(() =>
+        new Laboratory(['stardust'], { stardust: -1 }),
+      ).toThrow(RangeError);
+    });
+  });
 });
