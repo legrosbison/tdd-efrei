@@ -59,4 +59,24 @@ describe('Laboratory stock management', () => {
     expect(lab.add('stardust', 0.5)).toBe(0.5);
     expect(lab.add('stardust', 0.25)).toBe(0.75);
   });
+
+  describe('error handling', () => {
+    test('rejects unknown substances', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('moonwater', 1)).toThrow(ReferenceError);
+      expect(() => lab.getQuantity('moonwater')).toThrow(ReferenceError);
+    });
+
+    test('rejects invalid substance names', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('', 1)).toThrow(TypeError);
+      expect(() => lab.getQuantity('')).toThrow(TypeError);
+    });
+
+    test('rejects invalid quantities', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('stardust', 'a lot')).toThrow(TypeError);
+      expect(() => lab.add('stardust', -1)).toThrow(RangeError);
+    });
+  });
 });
