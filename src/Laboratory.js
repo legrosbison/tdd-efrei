@@ -12,6 +12,23 @@ class Laboratory {
     return this.#inventory.get(normalizedName);
   }
 
+  add(name, quantity) {
+    const normalizedName = this.#normalizeName(name);
+    if (!normalizedName) {
+      throw new TypeError(`Invalid substance name: ${String(name)}`);
+    }
+
+    if (!this.#inventory.has(normalizedName)) {
+      throw new ReferenceError(`Unknown substance: ${normalizedName}`);
+    }
+
+    const normalizedQuantity = this.#normalizeQuantity(quantity);
+    this.#inventory.set(
+      normalizedName,
+      this.#inventory.get(normalizedName) + normalizedQuantity
+    );
+  }
+
   #inventory;
 
   #buildInventory(knownSubstances, initialStock) {
