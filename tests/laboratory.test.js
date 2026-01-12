@@ -164,4 +164,71 @@ describe('Laboratory stock management', () => {
       expect(() => lab.add('stardust', -1)).toThrow(RangeError);
     });
   });
+  test('add increases inventory for known substances', () => {
+    const lab = new Laboratory(['stardust']);
+    lab.add('stardust', 0.5);
+    lab.add('stardust', 1.25);
+
+    expect(lab.getQuantity('stardust')).toBe(1.75);
+  });
+
+  test('add returns the updated quantity', () => {
+    const lab = new Laboratory(['stardust']);
+    expect(lab.add('stardust', 0.5)).toBe(0.5);
+    expect(lab.add('stardust', 0.25)).toBe(0.75);
+  });
+
+  test('can add product stock directly', () => {
+    const lab = new Laboratory(
+      ['stardust'],
+      {},
+      {
+        elixir: [[1, 'stardust']],
+      },
+    );
+
+    expect(lab.add('elixir', 1.25)).toBe(1.25);
+    expect(lab.getQuantity('elixir')).toBe(1.25);
+  });
+
+  describe('error handling', () => {
+    test('rejects unknown substances', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('moonwater', 1)).toThrow(ReferenceError);
+      expect(() => lab.getQuantity('moonwater')).toThrow(ReferenceError);
+    });
+
+    test('rejects invalid substance names', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('', 1)).toThrow(TypeError);
+      expect(() => lab.getQuantity('')).toThrow(TypeError);
+    });
+
+    test('rejects invalid quantities', () => {
+      const lab = new Laboratory(['stardust']);
+      expect(() => lab.add('stardust', 'a lot')).toThrow(TypeError);
+      expect(() => lab.add('stardust', -1)).toThrow(RangeError);
+    });
+  });
+});
+
+describe('Laboratory reactions execution', () => {
+  test('make consumes reagents and produces products', () => {
+    const lab = new Laboratory(
+      ['stardust', 'moonwater'],
+      { stardust: 10, moonwater: 5 },
+      {
+        elixir: [
+          [2, 'stardust'],
+          [1, 'moonwater'],
+        ],
+      },
+    );
+
+    const produced = lab.make('elixir', 3);
+    expect(produced).toBe(3);
+    expect(lab.getQuantity('stardust')).toBe(4);
+    expect(lab.getQuantity('moonwater')).toBe(2);
+    expect(lab.getQuantity('elixir')).toBe(3);
+  });
 });
