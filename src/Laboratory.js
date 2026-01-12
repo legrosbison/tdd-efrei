@@ -80,6 +80,7 @@ class Laboratory {
     );
 
     const normalizedProducts = [];
+    const seenProducts = new Set();
     for (const productName of Object.keys(reactions)) {
       const normalizedProduct = this.#normalizeName(productName);
       if (!normalizedProduct) {
@@ -90,11 +91,12 @@ class Laboratory {
 
       if (
         this.#inventory.has(normalizedProduct) ||
-        normalizedProducts.some((entry) => entry.name === normalizedProduct)
+        seenProducts.has(normalizedProduct)
       ) {
         throw new RangeError(`Duplicate substance name: ${normalizedProduct}`);
       }
 
+      seenProducts.add(normalizedProduct);
       normalizedProducts.push({ original: productName, name: normalizedProduct });
       this.#inventory.set(normalizedProduct, 0);
     }
