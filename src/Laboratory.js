@@ -18,6 +18,9 @@ class Laboratory {
     if (!Array.isArray(knownSubstances)) {
       throw new TypeError("Laboratory expects an array of known substances");
     }
+    if (knownSubstances.length === 0) {
+      throw new RangeError("At least one substance must be provided");
+    }
 
     const normalizedInitialStock = this.#normalizeInitialStock(initialStock);
     const inventory = new Map();
@@ -25,13 +28,13 @@ class Laboratory {
     knownSubstances.forEach((name, index) => {
       const normalizedName = this.#normalizeName(name);
       if (!normalizedName) {
-        throw new Error(
+        throw new TypeError(
           `Invalid substance name at index ${index}: ${String(name)}`
         );
       }
 
       if (inventory.has(normalizedName)) {
-        throw new Error(`Duplicate substance name: ${normalizedName}`);
+        throw new RangeError(`Duplicate substance name: ${normalizedName}`);
       }
 
       const startingQuantity = normalizedInitialStock.has(normalizedName)
@@ -44,7 +47,7 @@ class Laboratory {
 
     if (normalizedInitialStock.size > 0) {
       const [unknownName] = normalizedInitialStock.keys();
-      throw new Error(
+      throw new ReferenceError(
         `Initial stock references unknown substance: ${unknownName}`
       );
     }
