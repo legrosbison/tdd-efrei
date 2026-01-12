@@ -4,24 +4,12 @@ class Laboratory {
   }
 
   getQuantity(name) {
-    const normalizedName = this.#normalizeName(name);
-    if (!normalizedName || !this.#inventory.has(normalizedName)) {
-      throw new Error(`Unknown substance: ${String(name)}`);
-    }
-
+    const normalizedName = this.#resolveKnownSubstance(name);
     return this.#inventory.get(normalizedName);
   }
 
   add(name, quantity) {
-    const normalizedName = this.#normalizeName(name);
-    if (!normalizedName) {
-      throw new TypeError(`Invalid substance name: ${String(name)}`);
-    }
-
-    if (!this.#inventory.has(normalizedName)) {
-      throw new ReferenceError(`Unknown substance: ${normalizedName}`);
-    }
-
+    const normalizedName = this.#resolveKnownSubstance(name);
     const normalizedQuantity = this.#normalizeQuantity(quantity);
     const updatedQuantity =
       this.#inventory.get(normalizedName) + normalizedQuantity;
@@ -115,6 +103,19 @@ class Laboratory {
     }
 
     return value;
+  }
+
+  #resolveKnownSubstance(name) {
+    const normalizedName = this.#normalizeName(name);
+    if (!normalizedName) {
+      throw new TypeError(`Invalid substance name: ${String(name)}`);
+    }
+
+    if (!this.#inventory.has(normalizedName)) {
+      throw new ReferenceError(`Unknown substance: ${normalizedName}`);
+    }
+
+    return normalizedName;
   }
 }
 
