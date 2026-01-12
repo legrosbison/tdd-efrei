@@ -19,6 +19,50 @@ class Laboratory {
     return updatedQuantity;
   }
 
+  make(productName, desiredQuantity) {
+    const normalizedProduct = this.#normalizeName(productName);
+    if (!normalizedProduct) {
+      throw new TypeError(`Invalid substance name: ${String(productName)}`);
+    }
+
+    if (!this.#recipes.has(normalizedProduct)) {
+      return 0;
+    }
+
+    const recipe = this.#recipes.get(normalizedProduct);
+    const requestedQuantity = this.#normalizeQuantity(desiredQuantity);
+    if (requestedQuantity === 0) {
+      return 0;
+    }
+
+    const maxPossible = recipe.reduce((min, reagent) => {
+      const available = this.#inventory.get(reagent.substance);
+      if (reagent.quantity === 0) {
+        return min;
+      }
+      const possible = available / reagent.quantity;
+      return Math.min(min, possible);
+    }, Number.POSITIVE_INFINITY);
+
+    const actualQuantity = Math.min(requestedQuantity, maxPossible);
+    if (actualQuantity <= 0) {
+      return 0;
+    }
+
+    recipe.forEach((reagent) => {
+      const consumption = reagent.quantity * actualQuantity;
+      this.#inventory.set(
+        reagent.substance,
+        this.#inventory.get(reagent.substance) - consumption
+      );
+    });
+
+    const updatedProduct =
+      this.#inventory.get(normalizedProduct) + actualQuantity;
+    this.#inventory.set(normalizedProduct, updatedProduct);
+    return actualQuantity;
+  }
+
   #inventory;
   #recipes;
 
