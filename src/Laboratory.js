@@ -23,10 +23,10 @@ class Laboratory {
     }
 
     const normalizedQuantity = this.#normalizeQuantity(quantity);
-    this.#inventory.set(
-      normalizedName,
-      this.#inventory.get(normalizedName) + normalizedQuantity
-    );
+    const updatedQuantity =
+      this.#inventory.get(normalizedName) + normalizedQuantity;
+    this.#inventory.set(normalizedName, updatedQuantity);
+    return updatedQuantity;
   }
 
   #inventory;
