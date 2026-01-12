@@ -51,13 +51,10 @@ class Laboratory {
   }
 
   #buildRecipes(reactions) {
-    if (
-      reactions === null ||
-      typeof reactions !== "object" ||
-      Array.isArray(reactions)
-    ) {
-      throw new TypeError("Reactions must be provided as an object literal");
-    }
+    this.#assertPlainObject(
+      reactions,
+      "Reactions must be provided as an object literal"
+    );
 
     const recipes = new Map();
     for (const [productName, reagents] of Object.entries(reactions)) {
@@ -83,13 +80,10 @@ class Laboratory {
   }
 
   #applyInitialStock(initialStock) {
-    if (
-      initialStock === null ||
-      typeof initialStock !== "object" ||
-      Array.isArray(initialStock)
-    ) {
-      throw new TypeError("Initial stock must be provided as an object literal");
-    }
+    this.#assertPlainObject(
+      initialStock,
+      "Initial stock must be provided as an object literal"
+    );
 
     for (const [name, quantity] of Object.entries(initialStock)) {
       const normalizedName = this.#normalizeName(name);
@@ -180,6 +174,12 @@ class Laboratory {
     }
 
     return normalizedName;
+  }
+
+  #assertPlainObject(value, message) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+      throw new TypeError(message);
+    }
   }
 }
 
